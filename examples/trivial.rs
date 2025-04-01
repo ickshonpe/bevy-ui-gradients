@@ -7,7 +7,7 @@ use bevy_ui_gradients::*;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((DefaultPlugins, GradientsPlugin))
         .add_systems(Startup, setup)
         .add_systems(Update, update)
         .run();

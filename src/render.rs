@@ -276,7 +276,7 @@ pub struct ExtractedGradient {
     pub transform: Mat4,
     pub rect: Rect,
     pub clip: Option<Rect>,
-    pub camera_entity: Entity,
+    pub render_camera_entity: Entity,
     /// range into `ExtractedColorStops`
     pub stops_range: Range<usize>,
     pub node_type: NodeType,
@@ -494,7 +494,7 @@ pub fn extract_gradients(
                                     max: uinode.size(),
                                 },
                                 clip: clip.map(|clip| clip.clip),
-                                camera_entity,
+                                render_camera_entity,
                                 main_entity: entity.into(),
                                 node_type,
                                 border_radius: uinode.border_radius(),
@@ -536,7 +536,7 @@ pub fn extract_gradients(
                                     max: uinode.size(),
                                 },
                                 clip: clip.map(|clip| clip.clip),
-                                camera_entity,
+                                render_camera_entity,
                                 main_entity: entity.into(),
                                 node_type,
                                 border_radius: uinode.border_radius(),
@@ -587,7 +587,7 @@ pub fn extract_gradients(
                                     max: uinode.size(),
                                 },
                                 clip: clip.map(|clip| clip.clip),
-                                camera_entity,
+                                render_camera_entity,
                                 main_entity: entity.into(),
                                 node_type,
                                 border_radius: uinode.border_radius(),
@@ -617,7 +617,8 @@ pub fn queue_gradient(
 ) {
     let draw_function = draw_functions.read().id::<DrawGradientFns>();
     for (entity, gradient) in extracted_gradients.items.iter() {
-        let Ok((view_entity, view, ui_anti_alias)) = views.get_mut(gradient.camera_entity) else {
+        let Ok((view_entity, view, ui_anti_alias)) = views.get_mut(gradient.render_camera_entity)
+        else {
             continue;
         };
 
