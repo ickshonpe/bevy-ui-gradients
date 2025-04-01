@@ -1,6 +1,8 @@
 ## Bevy UI Gradients
 
+[![crates.is](https://img.shields.io/crates/v/bevy-ui-gradients)](https://crates.io/crates/bevy-ui-gradients)
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/ickshonpe/bevy-ui-gradients)
+
 
 ## Basic usage
 
