@@ -1,4 +1,4 @@
-## Bevy-ui-gradients
+## Bevy UI Gradients
 
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/ickshonpe/bevy-ui-gradients)
 

@@ -19,11 +19,6 @@ fn scale_val(val: Val, scale_factor: f32) -> Val {
 
 #[derive(Debug, Clone, Copy, PartialEq, Reflect)]
 #[reflect(Default, Debug, PartialEq)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 /// Responsive position relative to a UI node.
 pub struct Position {
     /// Normalized anchor point
@@ -193,11 +188,6 @@ impl From<(Val, Val)> for Position {
 /// A color stop for a gradient
 #[derive(Debug, Copy, Clone, PartialEq, Reflect)]
 #[reflect(Default, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 pub struct ColorStop {
     /// Color
     pub color: Color,
@@ -278,11 +268,6 @@ impl Default for ColorStop {
 /// An angular color stop for a conic gradient
 #[derive(Default, Debug, Copy, Clone, PartialEq, Reflect)]
 #[reflect(Default, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 pub struct AngularColorStop {
     /// Color of the stop
     pub color: Color,
@@ -326,11 +311,6 @@ impl AngularColorStop {
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/gradient/linear-gradient>
 #[derive(Clone, PartialEq, Debug, Reflect)]
 #[reflect(PartialEq)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 pub struct LinearGradient {
     /// The direction of the gradient.
     /// An angle of `0.` points upward, angles increasing clockwise.
@@ -440,11 +420,6 @@ impl LinearGradient {
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/gradient/radial-gradient>
 #[derive(Clone, PartialEq, Debug, Reflect)]
 #[reflect(PartialEq)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 pub struct RadialGradient {
     /// The center of the radial gradient
     pub position: Position,
@@ -480,11 +455,6 @@ impl Default for RadialGradient {
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/gradient/conic-gradient>
 #[derive(Clone, PartialEq, Debug, Reflect)]
 #[reflect(PartialEq)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 pub struct ConicGradient {
     /// The center of the conic gradient
     pub position: Position,
@@ -501,11 +471,6 @@ impl ConicGradient {
 
 #[derive(Clone, PartialEq, Debug, Reflect)]
 #[reflect(PartialEq)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 pub enum Gradient {
     /// A linear gradient
     ///
@@ -570,11 +535,6 @@ impl From<ConicGradient> for Gradient {
 
 #[derive(Component, Clone, PartialEq, Debug, Reflect)]
 #[reflect(PartialEq)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 /// A UI node that displays a gradient
 pub struct BackgroundGradient(pub Vec<Gradient>);
 
@@ -586,11 +546,6 @@ impl<T: Into<Gradient>> From<T> for BackgroundGradient {
 
 #[derive(Component, Clone, PartialEq, Debug, Reflect)]
 #[reflect(PartialEq)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 /// A UI node border that displays a gradient
 pub struct BorderGradient(pub Vec<Gradient>);
 
@@ -602,11 +557,6 @@ impl<T: Into<Gradient>> From<T> for BorderGradient {
 
 #[derive(Default, Copy, Clone, PartialEq, Debug, Reflect)]
 #[reflect(PartialEq, Default)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
 pub enum RadialGradientShape {
     /// A circle with radius equal to the distance from its center to the closest side
     ClosestSide,
