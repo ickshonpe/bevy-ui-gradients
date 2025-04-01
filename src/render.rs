@@ -384,7 +384,7 @@ pub fn extract_gradients(
     mut extracted_color_stops: ResMut<ExtractedColorStops>,
     mut extracted_uinodes: ResMut<ExtractedUiNodes>,
     default_ui_camera: Extract<DefaultUiCamera>,
-    ui_scale: Res<UiScale>,
+    ui_scale: Extract<Res<UiScale>>,
     gradients_query: Extract<
         Query<(
             Entity,
@@ -396,7 +396,7 @@ pub fn extract_gradients(
             AnyOf<(&BackgroundGradient, &BorderGradient)>,
         )>,
     >,
-    camera_query: Query<&Camera>,
+    camera_query: Extract<Query<&Camera>>,
     mapping: Extract<Query<RenderEntity>>,
 ) {
     let mut sorted_stops = vec![];
