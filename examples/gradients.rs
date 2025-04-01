@@ -14,7 +14,7 @@ use std::f32::consts::TAU;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((DefaultPlugins, UiGradientsPlugin))
         .add_systems(Startup, setup)
         .add_systems(Update, update)
         .run();

@@ -677,9 +677,9 @@ impl RadialGradientShape {
     }
 }
 
-pub struct GradientsPlugin;
+pub struct UiGradientsPlugin;
 
-impl Plugin for GradientsPlugin {
+impl Plugin for UiGradientsPlugin {
     fn build(&self, app: &mut App) {
         build_gradients_renderer(app);
     }
