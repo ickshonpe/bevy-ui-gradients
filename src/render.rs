@@ -13,42 +13,36 @@ use bevy::{
         component::Component,
         entity::Entity,
         query::AnyOf,
-        schedule::IntoSystemConfigs,
+        resource::Resource,
+        schedule::IntoScheduleConfigs,
         storage::SparseSet,
         system::{
-            Resource,
             lifetimeless::{Read, SRes},
             *,
         },
-        world::FromWorld,
-        world::World,
+        world::{FromWorld, World},
     },
     image::BevyDefault,
     math::{
-        FloatOrd, Mat4, Rect, Vec2, Vec3Swizzles, Vec4Swizzles,
+        FloatOrd, Mat4, Rect, UVec2, Vec2, Vec3, Vec3Swizzles, Vec4Swizzles,
         ops::{cos, sin},
     },
-    math::{UVec2, Vec3},
-    render::RenderApp,
-    render::sync_world::MainEntity,
     render::{
-        Extract, ExtractSchedule, Render, RenderSet,
+        Extract, ExtractSchedule, Render, RenderApp, RenderSet,
+        camera::Camera,
         render_phase::*,
         render_resource::{binding_types::uniform_buffer, *},
         renderer::{RenderDevice, RenderQueue},
-        sync_world::TemporaryRenderEntity,
+        sync_world::{MainEntity, RenderEntity, TemporaryRenderEntity},
         view::*,
     },
-    render::{camera::Camera, sync_world::RenderEntity},
     sprite::BorderRect,
     transform::prelude::GlobalTransform,
-    ui::extract_uinode_background_colors,
     ui::{
-        CalculatedClip, ComputedNode, DefaultUiCamera, ExtractedUiItem, ExtractedUiNode,
-        ExtractedUiNodes, TargetCamera, UiAntiAlias, UiScale, shader_flags,
+        CalculatedClip, ComputedNode, ComputedNodeTarget, DefaultUiCamera, ExtractedUiItem,
+        ExtractedUiNode, ExtractedUiNodes, NodeType, RenderUiSystem, ResolvedBorderRadius,
+        TransparentUi, UiAntiAlias, UiScale, extract_uinode_background_colors, shader_flags,
     },
-    ui::{NodeType, ResolvedBorderRadius},
-    ui::{RenderUiSystem, TransparentUi},
 };
 use bytemuck::{Pod, Zeroable};
 
@@ -392,7 +386,7 @@ pub fn extract_gradients(
             &GlobalTransform,
             &ViewVisibility,
             Option<&CalculatedClip>,
-            Option<&TargetCamera>,
+            Option<&ComputedNodeTarget>,
             AnyOf<(&BackgroundGradient, &BorderGradient)>,
         )>,
     >,
@@ -409,7 +403,10 @@ pub fn extract_gradients(
             continue;
         }
 
-        let Some(camera_entity) = camera.map(TargetCamera::entity).or(default_ui_camera.get())
+        let Some(camera_entity) = camera
+            .map(|target| target.camera())
+            .flatten()
+            .or(default_ui_camera.get())
         else {
             continue;
         };
@@ -443,8 +440,9 @@ pub fn extract_gradients(
                 if let Some(color) = gradient.get_single() {
                     // With a single color stop there's no gradient, fill the node with the color
                     extracted_uinodes.uinodes.insert(
-                        commands.spawn(TemporaryRenderEntity).id(),
+                        commands.spawn(TemporaryRenderEntity).id().index() as usize,
                         ExtractedUiNode {
+                            render_entity: commands.spawn(TemporaryRenderEntity).id(),
                             stack_index: uinode.stack_index(),
                             color: color.into(),
                             rect: Rect {
@@ -453,7 +451,7 @@ pub fn extract_gradients(
                             },
                             image: AssetId::default(),
                             clip: clip.map(|clip| clip.clip),
-                            camera_entity: render_camera_entity,
+                            extracted_camera_entity: render_camera_entity,
                             item: ExtractedUiItem::Node {
                                 atlas_scaling: None,
                                 flip_x: false,
@@ -622,12 +620,13 @@ pub fn queue_gradient(
 ) {
     let draw_function = draw_functions.read().id::<DrawGradientFns>();
     for (entity, gradient) in extracted_gradients.items.iter() {
-        let Ok((view_entity, view, ui_anti_alias)) = views.get_mut(gradient.render_camera_entity)
+        let Ok((_view_entity, view, ui_anti_alias)) = views.get_mut(gradient.render_camera_entity)
         else {
             continue;
         };
 
-        let Some(transparent_phase) = transparent_render_phases.get_mut(&view_entity) else {
+        let Some(transparent_phase) = transparent_render_phases.get_mut(&view.retained_view_entity)
+        else {
             continue;
         };
 
@@ -644,12 +643,11 @@ pub fn queue_gradient(
             draw_function,
             pipeline,
             entity: (*entity, gradient.main_entity),
-            sort_key: (
-                FloatOrd(gradient.stack_index as f32 + GRADIENT_Z_OFFSET),
-                entity.index(),
-            ),
+            sort_key: FloatOrd(gradient.stack_index as f32 + GRADIENT_Z_OFFSET),
             batch_range: 0..0,
-            extra_index: PhaseItemExtraIndex::NONE,
+            extra_index: PhaseItemExtraIndex::None,
+            index: entity.index() as usize,
+            indexed: true,
         });
     }
 }
