@@ -798,11 +798,14 @@ pub fn prepare_gradient(
                     flags |= g_flags;
 
                     let range = gradient.stops_range.start..gradient.stops_range.end - 1;
-                    let segment_count = range.len() as u32;
+                    let mut segment_count = 0;
 
                     for stop_index in range {
                         let start_stop = extracted_color_stops.0[stop_index];
                         let end_stop = extracted_color_stops.0[stop_index + 1];
+                        if start_stop.1 == end_stop.1 {
+                            continue;
+                        }
                         let start_color = start_stop.0.to_f32_array();
                         let end_color = end_stop.0.to_f32_array();
                         let mut stop_flags = flags;
@@ -846,6 +849,7 @@ pub fn prepare_gradient(
                             ui_meta.indices.push(indices_index + i as u32);
                         }
                         indices_index += 4;
+                        segment_count += 1;
                     }
 
                     let vertices_count = 6 * segment_count;
