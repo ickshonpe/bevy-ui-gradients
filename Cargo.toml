@@ -11,5 +11,9 @@ repository = "https://github.com/ickshonpe/bevy-ui-gradients"
 
 
 [dependencies]
-bevy = { version = "0.15", features = ["bevy_asset", "bevy_sprite", "bevy_ui"] }
+bevy = { version = "0.15.3", features = [
+    "bevy_asset",
+    "bevy_sprite",
+    "bevy_ui",
+] }
 bytemuck = "1.7"

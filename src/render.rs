@@ -815,7 +815,9 @@ pub fn prepare_gradient(
                         let start_color = start_stop.0.to_f32_array();
                         let end_color = end_stop.0.to_f32_array();
                         let mut stop_flags = flags;
-                        if stop_index == gradient.stops_range.start || segment_count == 0 {
+                        if 0. < start_stop.1
+                            && (stop_index == gradient.stops_range.start || segment_count == 0)
+                        {
                             stop_flags |= gradient_shader_flags::FILL_START;
                         }
                         if stop_index == gradient.stops_range.end - 2 {
