@@ -801,15 +801,21 @@ pub fn prepare_gradient(
                     let mut segment_count = 0;
 
                     for stop_index in range {
-                        let start_stop = extracted_color_stops.0[stop_index];
+                        let mut start_stop = extracted_color_stops.0[stop_index];
                         let end_stop = extracted_color_stops.0[stop_index + 1];
                         if start_stop.1 == end_stop.1 {
-                            continue;
+                            if stop_index == gradient.stops_range.end - 2 {
+                                if 0 < segment_count {
+                                    start_stop.0 = LinearRgba::NONE;
+                                }
+                            } else {
+                                continue;
+                            }
                         }
                         let start_color = start_stop.0.to_f32_array();
                         let end_color = end_stop.0.to_f32_array();
                         let mut stop_flags = flags;
-                        if stop_index == gradient.stops_range.start {
+                        if stop_index == gradient.stops_range.start || segment_count == 0 {
                             stop_flags |= gradient_shader_flags::FILL_START;
                         }
                         if stop_index == gradient.stops_range.end - 2 {
