@@ -852,16 +852,18 @@ pub fn prepare_gradient(
                         segment_count += 1;
                     }
 
-                    let vertices_count = 6 * segment_count;
+                    if 0 < segment_count {
+                        let vertices_count = 6 * segment_count;
 
-                    batches.push((
-                        item.entity(),
-                        GradientBatch {
-                            range: vertices_index..(vertices_index + vertices_count),
-                        },
-                    ));
+                        batches.push((
+                            item.entity(),
+                            GradientBatch {
+                                range: vertices_index..(vertices_index + vertices_count),
+                            },
+                        ));
 
-                    vertices_index += vertices_count;
+                        vertices_index += vertices_count;
+                    }
                 }
             }
         }
