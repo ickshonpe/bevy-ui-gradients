@@ -63,7 +63,7 @@ fn update_clocks(time: Res<Time>, mut query: Query<(&ClockMode, &mut BackgroundG
             _ => TAU,
         };
         *gradient = BackgroundGradient::from(ConicGradient {
-            start: 0.75 * TAU,
+            start: 0.,
             position: Default::default(),
             stops: vec![
                 AngularColorStop::new(RED, 0.0),
