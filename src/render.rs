@@ -267,7 +267,7 @@ impl SpecializedRenderPipeline for GradientPipeline {
 
 pub enum ResolvedGradient {
     Linear { angle: f32 },
-    Conic { center: Vec2 },
+    Conic { center: Vec2, start: f32 },
     Radial { center: Vec2, size: Vec2 },
 }
 
@@ -546,6 +546,7 @@ pub fn extract_gradients(
                         );
                     }
                     Gradient::Conic(ConicGradient {
+                        start,
                         position: center,
                         stops,
                     }) => {
@@ -555,8 +556,9 @@ pub fn extract_gradients(
 
                         // sort the explicit stops
                         sorted_stops.extend(stops.iter().filter_map(|stop| {
-                            stop.angle
-                                .map(|angle| (stop.color.to_linear(), angle, stop.hint))
+                            stop.angle.map(|angle| {
+                                (stop.color.to_linear(), angle.clamp(0., TAU), stop.hint)
+                            })
                         }));
                         sorted_stops.sort_by_key(|(_, angle, _)| FloatOrd(*angle));
                         let mut sorted_stops_drain = sorted_stops.drain(..);
@@ -592,7 +594,10 @@ pub fn extract_gradients(
                                 node_type,
                                 border_radius: uinode.border_radius(),
                                 border: uinode.border(),
-                                resolved_gradient: ResolvedGradient::Conic { center: g_start },
+                                resolved_gradient: ResolvedGradient::Conic {
+                                    center: g_start,
+                                    start: *start,
+                                },
                             },
                         );
                     }
@@ -783,11 +788,9 @@ pub fn prepare_gradient(
                                 0,
                             )
                         }
-                        ResolvedGradient::Conic { center } => (
-                            center.into(),
-                            Vec2::ZERO.into(),
-                            gradient_shader_flags::CONIC,
-                        ),
+                        ResolvedGradient::Conic { center, start } => {
+                            (center.into(), [start, 0.], gradient_shader_flags::CONIC)
+                        }
                         ResolvedGradient::Radial { center, size } => (
                             center.into(),
                             Vec2::splat(if size.y != 0. { size.x / size.y } else { 1. }).into(),

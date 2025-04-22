@@ -1,4 +1,4 @@
-//! Test, none of the gradient nodes should show any red.
+//! Test, none of the gradient should show any red.
 use bevy::color::palettes::css::RED;
 use bevy::color::palettes::css::WHITE;
 use bevy::prelude::*;
@@ -25,6 +25,7 @@ fn setup(mut commands: Commands) {
                 },
                 BorderRadius::all(Val::Px(20.)),
                 BackgroundGradient::from(ConicGradient {
+                    start: 0.,
                     stops: vec![
                         AngularColorStop::new(RED, 0.),
                         AngularColorStop::new(RED, 0.),
