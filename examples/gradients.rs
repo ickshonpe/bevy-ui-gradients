@@ -31,7 +31,7 @@ fn setup(mut commands: Commands) {
             ..Default::default()
         })
         .with_children(|commands| {
-            for (b, stops) in [
+            for (i, (b, stops)) in [
                 (
                     5.,
                     vec![
@@ -59,7 +59,10 @@ fn setup(mut commands: Commands) {
                         VIOLET.into(),
                     ],
                 ),
-            ] {
+            ]
+            .into_iter()
+            .enumerate()
+            {
                 commands.spawn(Node::default()).with_children(|commands| {
                     commands
                         .spawn(Node {
@@ -153,7 +156,7 @@ fn setup(mut commands: Commands) {
                             },
                             BorderRadius::all(Val::Px(20.)),
                             BackgroundGradient::from(ConicGradient {
-                                start: 0.,
+                                start: (0.25001) * TAU * i as f32,
                                 stops: stops
                                     .iter()
                                     .map(|stop| AngularColorStop::auto(stop.color))
