@@ -3,7 +3,7 @@ name = "bevy-ui-gradients"
 keywords = ["bevy", "gamedev", "ui", "gradients", "rendering"]
 description = "Bevy UI gradients plugin"
 categories = ["game-development", "gui", "rendering"]
-version = "0.2.0"
+version = "0.3.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -11,5 +11,9 @@ repository = "https://github.com/ickshonpe/bevy-ui-gradients"
 
 
 [dependencies]
-bevy = { version = "0.15", features = ["bevy_asset", "bevy_sprite", "bevy_ui"] }
+bevy = { version = "0.15.3", features = [
+    "bevy_asset",
+    "bevy_sprite",
+    "bevy_ui",
+] }
 bytemuck = "1.7"

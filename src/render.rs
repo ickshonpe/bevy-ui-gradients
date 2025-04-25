@@ -267,7 +267,7 @@ impl SpecializedRenderPipeline for GradientPipeline {
 
 pub enum ResolvedGradient {
     Linear { angle: f32 },
-    Conic { center: Vec2 },
+    Conic { center: Vec2, start: f32 },
     Radial { center: Vec2, size: Vec2 },
 }
 
@@ -546,6 +546,7 @@ pub fn extract_gradients(
                         );
                     }
                     Gradient::Conic(ConicGradient {
+                        start,
                         position: center,
                         stops,
                     }) => {
@@ -555,8 +556,9 @@ pub fn extract_gradients(
 
                         // sort the explicit stops
                         sorted_stops.extend(stops.iter().filter_map(|stop| {
-                            stop.angle
-                                .map(|angle| (stop.color.to_linear(), angle, stop.hint))
+                            stop.angle.map(|angle| {
+                                (stop.color.to_linear(), angle.clamp(0., TAU), stop.hint)
+                            })
                         }));
                         sorted_stops.sort_by_key(|(_, angle, _)| FloatOrd(*angle));
                         let mut sorted_stops_drain = sorted_stops.drain(..);
@@ -592,7 +594,10 @@ pub fn extract_gradients(
                                 node_type,
                                 border_radius: uinode.border_radius(),
                                 border: uinode.border(),
-                                resolved_gradient: ResolvedGradient::Conic { center: g_start },
+                                resolved_gradient: ResolvedGradient::Conic {
+                                    center: g_start,
+                                    start: *start,
+                                },
                             },
                         );
                     }
@@ -783,11 +788,9 @@ pub fn prepare_gradient(
                                 0,
                             )
                         }
-                        ResolvedGradient::Conic { center } => (
-                            center.into(),
-                            Vec2::ZERO.into(),
-                            gradient_shader_flags::CONIC,
-                        ),
+                        ResolvedGradient::Conic { center, start } => {
+                            (center.into(), [start, 0.], gradient_shader_flags::CONIC)
+                        }
                         ResolvedGradient::Radial { center, size } => (
                             center.into(),
                             Vec2::splat(if size.y != 0. { size.x / size.y } else { 1. }).into(),
@@ -801,15 +804,23 @@ pub fn prepare_gradient(
                     let mut segment_count = 0;
 
                     for stop_index in range {
-                        let start_stop = extracted_color_stops.0[stop_index];
+                        let mut start_stop = extracted_color_stops.0[stop_index];
                         let end_stop = extracted_color_stops.0[stop_index + 1];
                         if start_stop.1 == end_stop.1 {
-                            continue;
+                            if stop_index == gradient.stops_range.end - 2 {
+                                if 0 < segment_count {
+                                    start_stop.0 = LinearRgba::NONE;
+                                }
+                            } else {
+                                continue;
+                            }
                         }
                         let start_color = start_stop.0.to_f32_array();
                         let end_color = end_stop.0.to_f32_array();
                         let mut stop_flags = flags;
-                        if stop_index == gradient.stops_range.start {
+                        if 0. < start_stop.1
+                            && (stop_index == gradient.stops_range.start || segment_count == 0)
+                        {
                             stop_flags |= gradient_shader_flags::FILL_START;
                         }
                         if stop_index == gradient.stops_range.end - 2 {
@@ -852,16 +863,18 @@ pub fn prepare_gradient(
                         segment_count += 1;
                     }
 
-                    let vertices_count = 6 * segment_count;
+                    if 0 < segment_count {
+                        let vertices_count = 6 * segment_count;
 
-                    batches.push((
-                        item.entity(),
-                        GradientBatch {
-                            range: vertices_index..(vertices_index + vertices_count),
-                        },
-                    ));
+                        batches.push((
+                            item.entity(),
+                            GradientBatch {
+                                range: vertices_index..(vertices_index + vertices_count),
+                            },
+                        ));
 
-                    vertices_index += vertices_count;
+                        vertices_index += vertices_count;
+                    }
                 }
             }
         }
