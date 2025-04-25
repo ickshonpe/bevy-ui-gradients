@@ -566,34 +566,25 @@ pub fn extract_gradients(
                             TAU,
                         );
 
-                        extracted_gradients.items.insert(
-                            commands.spawn(TemporaryRenderEntity).id(),
-                            ExtractedGradient {
-                                stack_index: uinode.stack_index(),
-                                transform: transform.compute_matrix(),
-                                stops_range: range_start..extracted_color_stops.0.len(),
-                                rect: Rect {
-                                    min: Vec2::ZERO,
-                                    max: uinode.size(),
-                                },
-                                clip: clip.map(|clip| clip.clip),
-                                render_camera_entity,
-                                main_entity: entity.into(),
-                                node_type,
-                                border_radius: uinode.border_radius(),
-                                border: uinode.border(),
-                                resolved_gradient: ResolvedGradient::Conic {
-                                    center: g_start,
-                                    start: *start,
-                                },
+                        extracted_gradients.items.push(ExtractedGradient {
+                            render_entity: commands.spawn(TemporaryRenderEntity).id(),
+                            stack_index: uinode.stack_index(),
+                            transform: transform.compute_matrix(),
+                            stops_range: range_start..extracted_color_stops.0.len(),
+                            rect: Rect {
+                                min: Vec2::ZERO,
+                                max: uinode.size(),
                             },
                             clip: clip.map(|clip| clip.clip),
                             extracted_camera_entity,
                             main_entity: entity.into(),
                             node_type,
-                            border_radius: uinode.border_radius,
-                            border: uinode.border,
-                            resolved_gradient: ResolvedGradient::Conic { center: g_start },
+                            border_radius: uinode.border_radius(),
+                            border: uinode.border(),
+                            resolved_gradient: ResolvedGradient::Conic {
+                                center: g_start,
+                                start: *start,
+                            },
                         });
                     }
                 }
