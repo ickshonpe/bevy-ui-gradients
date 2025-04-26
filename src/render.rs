@@ -12,43 +12,35 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
-        query::AnyOf,
-        schedule::IntoSystemConfigs,
-        storage::SparseSet,
+        query::{AnyOf, With},
+        resource::Resource,
+        schedule::IntoScheduleConfigs,
         system::{
-            Resource,
             lifetimeless::{Read, SRes},
             *,
         },
-        world::FromWorld,
-        world::World,
+        world::{FromWorld, World},
     },
     image::BevyDefault,
     math::{
-        FloatOrd, Mat4, Rect, Vec2, Vec3Swizzles, Vec4Swizzles,
+        FloatOrd, Mat4, Rect, Vec2, Vec3, Vec3Swizzles, Vec4Swizzles,
         ops::{cos, sin},
     },
-    math::{UVec2, Vec3},
-    render::RenderApp,
-    render::sync_world::MainEntity,
     render::{
-        Extract, ExtractSchedule, Render, RenderSet,
+        Extract, ExtractSchedule, Render, RenderApp, RenderSet,
         render_phase::*,
         render_resource::{binding_types::uniform_buffer, *},
         renderer::{RenderDevice, RenderQueue},
-        sync_world::TemporaryRenderEntity,
+        sync_world::{MainEntity, TemporaryRenderEntity},
         view::*,
     },
-    render::{camera::Camera, sync_world::RenderEntity},
     sprite::BorderRect,
     transform::prelude::GlobalTransform,
-    ui::extract_uinode_background_colors,
     ui::{
-        CalculatedClip, ComputedNode, DefaultUiCamera, ExtractedUiItem, ExtractedUiNode,
-        ExtractedUiNodes, TargetCamera, UiAntiAlias, UiScale, shader_flags,
+        CalculatedClip, ComputedNode, ComputedNodeTarget, ExtractedUiItem, ExtractedUiNode,
+        ExtractedUiNodes, NodeType, RenderUiSystem, ResolvedBorderRadius, TransparentUi,
+        UiAntiAlias, UiCameraMap, UiCameraView, extract_uinode_background_colors, shader_flags,
     },
-    ui::{NodeType, ResolvedBorderRadius},
-    ui::{RenderUiSystem, TransparentUi},
 };
 use bytemuck::{Pod, Zeroable};
 
@@ -68,7 +60,8 @@ pub(crate) const QUAD_VERTEX_POSITIONS: [Vec3; 4] = [
 
 pub(crate) const QUAD_INDICES: [usize; 6] = [0, 2, 3, 0, 1, 2];
 
-pub const UI_GRADIENT_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(11797979889797929191);
+pub const UI_GRADIENT_SHADER_HANDLE: Handle<Shader> =
+    weak_handle!("10116113-aac4-47fa-91c8-35cbe80dddcb");
 
 pub const GRADIENT_Z_OFFSET: f32 = 0.1;
 
@@ -276,11 +269,12 @@ pub struct ExtractedGradient {
     pub transform: Mat4,
     pub rect: Rect,
     pub clip: Option<Rect>,
-    pub render_camera_entity: Entity,
+    pub extracted_camera_entity: Entity,
     /// range into `ExtractedColorStops`
     pub stops_range: Range<usize>,
     pub node_type: NodeType,
     pub main_entity: MainEntity,
+    pub render_entity: Entity,
     /// Border radius of the UI node.
     /// Ordering: top left, top right, bottom right, bottom left.
     pub border_radius: ResolvedBorderRadius,
@@ -292,7 +286,7 @@ pub struct ExtractedGradient {
 
 #[derive(Resource, Default)]
 pub struct ExtractedGradients {
-    pub items: SparseSet<Entity, ExtractedGradient>,
+    pub items: Vec<ExtractedGradient>,
 }
 
 #[derive(Resource, Default)]
@@ -383,51 +377,40 @@ pub fn extract_gradients(
     mut extracted_gradients: ResMut<ExtractedGradients>,
     mut extracted_color_stops: ResMut<ExtractedColorStops>,
     mut extracted_uinodes: ResMut<ExtractedUiNodes>,
-    default_ui_camera: Extract<DefaultUiCamera>,
-    ui_scale: Extract<Res<UiScale>>,
     gradients_query: Extract<
         Query<(
             Entity,
             &ComputedNode,
+            &ComputedNodeTarget,
             &GlobalTransform,
-            &ViewVisibility,
+            &InheritedVisibility,
             Option<&CalculatedClip>,
-            Option<&TargetCamera>,
             AnyOf<(&BackgroundGradient, &BorderGradient)>,
         )>,
     >,
-    camera_query: Extract<Query<&Camera>>,
-    mapping: Extract<Query<RenderEntity>>,
+    camera_map: Extract<UiCameraMap>,
 ) {
+    let mut camera_mapper = camera_map.get_mapper();
     let mut sorted_stops = vec![];
 
-    for (entity, uinode, transform, view_visibility, clip, camera, (gradient, gradient_border)) in
-        &gradients_query
+    for (
+        entity,
+        uinode,
+        target,
+        transform,
+        inherited_visibility,
+        clip,
+        (gradient, gradient_border),
+    ) in &gradients_query
     {
-        // Skip invisible backgrounds
-        if !view_visibility.get() {
+        // Skip invisible images
+        if !inherited_visibility.get() {
             continue;
         }
 
-        let Some(camera_entity) = camera.map(TargetCamera::entity).or(default_ui_camera.get())
-        else {
+        let Some(extracted_camera_entity) = camera_mapper.map(target) else {
             continue;
         };
-
-        let Ok(render_camera_entity) = mapping.get(camera_entity) else {
-            continue;
-        };
-
-        let (target_size, scale_factor) = camera_query
-            .get(camera_entity)
-            .ok()
-            .map(|camera| {
-                (
-                    camera.physical_viewport_size().unwrap_or(UVec2::ZERO),
-                    camera.target_scaling_factor().unwrap_or(1.0) * ui_scale.0,
-                )
-            })
-            .unwrap_or((UVec2::ZERO, ui_scale.0));
 
         for (gradients, node_type) in [
             (gradient.map(|g| &g.0), NodeType::Rect),
@@ -442,116 +425,121 @@ pub fn extract_gradients(
                 }
                 if let Some(color) = gradient.get_single() {
                     // With a single color stop there's no gradient, fill the node with the color
-                    extracted_uinodes.uinodes.insert(
-                        commands.spawn(TemporaryRenderEntity).id(),
-                        ExtractedUiNode {
-                            stack_index: uinode.stack_index(),
-                            color: color.into(),
-                            rect: Rect {
-                                min: Vec2::ZERO,
-                                max: uinode.size(),
-                            },
-                            image: AssetId::default(),
-                            clip: clip.map(|clip| clip.clip),
-                            camera_entity: render_camera_entity,
-                            item: ExtractedUiItem::Node {
-                                atlas_scaling: None,
-                                flip_x: false,
-                                flip_y: false,
-                                border_radius: uinode.border_radius(),
-                                border: uinode.border(),
-                                node_type,
-                                transform: transform.compute_matrix(),
-                            },
-                            main_entity: entity.into(),
+                    extracted_uinodes.uinodes.push(ExtractedUiNode {
+                        stack_index: uinode.stack_index,
+                        color: color.into(),
+                        rect: Rect {
+                            min: Vec2::ZERO,
+                            max: uinode.size,
                         },
-                    );
+                        image: AssetId::default(),
+                        clip: clip.map(|clip| clip.clip),
+                        extracted_camera_entity,
+                        item: ExtractedUiItem::Node {
+                            atlas_scaling: None,
+                            flip_x: false,
+                            flip_y: false,
+                            border_radius: uinode.border_radius,
+                            border: uinode.border,
+                            node_type,
+                            transform: transform.compute_matrix(),
+                        },
+                        main_entity: entity.into(),
+                        render_entity: commands.spawn(TemporaryRenderEntity).id(),
+                    });
                     continue;
                 }
                 match gradient {
                     Gradient::Linear(LinearGradient { angle, stops }) => {
-                        let length = compute_gradient_line_length(*angle, uinode.size());
+                        let length = compute_gradient_line_length(*angle, uinode.size);
 
                         let range_start = extracted_color_stops.0.len();
 
                         compute_color_stops(
-                            &stops,
-                            scale_factor,
+                            stops,
+                            target.scale_factor(),
                             length,
-                            target_size.as_vec2(),
+                            target.physical_size().as_vec2(),
                             &mut sorted_stops,
                             &mut extracted_color_stops.0,
                         );
 
-                        extracted_gradients.items.insert(
-                            commands.spawn(TemporaryRenderEntity).id(),
-                            ExtractedGradient {
-                                stack_index: uinode.stack_index(),
-                                transform: transform.compute_matrix(),
-                                stops_range: range_start..extracted_color_stops.0.len(),
-                                rect: Rect {
-                                    min: Vec2::ZERO,
-                                    max: uinode.size(),
-                                },
-                                clip: clip.map(|clip| clip.clip),
-                                render_camera_entity,
-                                main_entity: entity.into(),
-                                node_type,
-                                border_radius: uinode.border_radius(),
-                                border: uinode.border(),
-                                resolved_gradient: ResolvedGradient::Linear { angle: *angle },
+                        extracted_gradients.items.push(ExtractedGradient {
+                            render_entity: commands.spawn(TemporaryRenderEntity).id(),
+                            stack_index: uinode.stack_index,
+                            transform: transform.compute_matrix(),
+                            stops_range: range_start..extracted_color_stops.0.len(),
+                            rect: Rect {
+                                min: Vec2::ZERO,
+                                max: uinode.size,
                             },
-                        );
+                            clip: clip.map(|clip| clip.clip),
+                            extracted_camera_entity,
+                            main_entity: entity.into(),
+                            node_type,
+                            border_radius: uinode.border_radius,
+                            border: uinode.border,
+                            resolved_gradient: ResolvedGradient::Linear { angle: *angle },
+                        });
                     }
                     Gradient::Radial(RadialGradient {
                         position: center,
                         shape,
                         stops,
                     }) => {
-                        let c = center.resolve(scale_factor, uinode.size(), target_size.as_vec2());
+                        let c = center.resolve(
+                            target.scale_factor(),
+                            uinode.size,
+                            target.physical_size().as_vec2(),
+                        );
 
-                        let size =
-                            shape.resolve(c, scale_factor, uinode.size(), target_size.as_vec2());
+                        let size = shape.resolve(
+                            c,
+                            target.scale_factor(),
+                            uinode.size,
+                            target.physical_size().as_vec2(),
+                        );
 
                         let length = size.x;
 
                         let range_start = extracted_color_stops.0.len();
                         compute_color_stops(
-                            &stops,
-                            scale_factor,
+                            stops,
+                            target.scale_factor(),
                             length,
-                            target_size.as_vec2(),
+                            target.physical_size().as_vec2(),
                             &mut sorted_stops,
                             &mut extracted_color_stops.0,
                         );
 
-                        extracted_gradients.items.insert(
-                            commands.spawn(TemporaryRenderEntity).id(),
-                            ExtractedGradient {
-                                stack_index: uinode.stack_index(),
-                                transform: transform.compute_matrix(),
-                                stops_range: range_start..extracted_color_stops.0.len(),
-                                rect: Rect {
-                                    min: Vec2::ZERO,
-                                    max: uinode.size(),
-                                },
-                                clip: clip.map(|clip| clip.clip),
-                                render_camera_entity,
-                                main_entity: entity.into(),
-                                node_type,
-                                border_radius: uinode.border_radius(),
-                                border: uinode.border(),
-                                resolved_gradient: ResolvedGradient::Radial { center: c, size },
+                        extracted_gradients.items.push(ExtractedGradient {
+                            render_entity: commands.spawn(TemporaryRenderEntity).id(),
+                            stack_index: uinode.stack_index,
+                            transform: transform.compute_matrix(),
+                            stops_range: range_start..extracted_color_stops.0.len(),
+                            rect: Rect {
+                                min: Vec2::ZERO,
+                                max: uinode.size,
                             },
-                        );
+                            clip: clip.map(|clip| clip.clip),
+                            extracted_camera_entity,
+                            main_entity: entity.into(),
+                            node_type,
+                            border_radius: uinode.border_radius,
+                            border: uinode.border,
+                            resolved_gradient: ResolvedGradient::Radial { center: c, size },
+                        });
                     }
                     Gradient::Conic(ConicGradient {
                         start,
                         position: center,
                         stops,
                     }) => {
-                        let g_start =
-                            center.resolve(scale_factor, uinode.size(), target_size.as_vec2());
+                        let g_start = center.resolve(
+                            target.scale_factor(),
+                            uinode.size,
+                            target.physical_size().as_vec2(),
+                        );
                         let range_start = extracted_color_stops.0.len();
 
                         // sort the explicit stops
@@ -578,28 +566,26 @@ pub fn extract_gradients(
                             TAU,
                         );
 
-                        extracted_gradients.items.insert(
-                            commands.spawn(TemporaryRenderEntity).id(),
-                            ExtractedGradient {
-                                stack_index: uinode.stack_index(),
-                                transform: transform.compute_matrix(),
-                                stops_range: range_start..extracted_color_stops.0.len(),
-                                rect: Rect {
-                                    min: Vec2::ZERO,
-                                    max: uinode.size(),
-                                },
-                                clip: clip.map(|clip| clip.clip),
-                                render_camera_entity,
-                                main_entity: entity.into(),
-                                node_type,
-                                border_radius: uinode.border_radius(),
-                                border: uinode.border(),
-                                resolved_gradient: ResolvedGradient::Conic {
-                                    center: g_start,
-                                    start: *start,
-                                },
+                        extracted_gradients.items.push(ExtractedGradient {
+                            render_entity: commands.spawn(TemporaryRenderEntity).id(),
+                            stack_index: uinode.stack_index(),
+                            transform: transform.compute_matrix(),
+                            stops_range: range_start..extracted_color_stops.0.len(),
+                            rect: Rect {
+                                min: Vec2::ZERO,
+                                max: uinode.size(),
                             },
-                        );
+                            clip: clip.map(|clip| clip.clip),
+                            extracted_camera_entity,
+                            main_entity: entity.into(),
+                            node_type,
+                            border_radius: uinode.border_radius(),
+                            border: uinode.border(),
+                            resolved_gradient: ResolvedGradient::Conic {
+                                center: g_start,
+                                start: *start,
+                            },
+                        });
                     }
                 }
             }
@@ -616,18 +602,25 @@ pub fn queue_gradient(
     gradients_pipeline: Res<GradientPipeline>,
     mut pipelines: ResMut<SpecializedRenderPipelines<GradientPipeline>>,
     mut transparent_render_phases: ResMut<ViewSortedRenderPhases<TransparentUi>>,
-    mut views: Query<(Entity, &ExtractedView, Option<&UiAntiAlias>)>,
+    mut render_views: Query<(&UiCameraView, Option<&UiAntiAlias>), With<ExtractedView>>,
+    camera_views: Query<&ExtractedView>,
     pipeline_cache: Res<PipelineCache>,
     draw_functions: Res<DrawFunctions<TransparentUi>>,
 ) {
     let draw_function = draw_functions.read().id::<DrawGradientFns>();
-    for (entity, gradient) in extracted_gradients.items.iter() {
-        let Ok((view_entity, view, ui_anti_alias)) = views.get_mut(gradient.render_camera_entity)
+    for (index, gradient) in extracted_gradients.items.iter().enumerate() {
+        let Ok((default_camera_view, ui_anti_alias)) =
+            render_views.get_mut(gradient.extracted_camera_entity)
         else {
             continue;
         };
 
-        let Some(transparent_phase) = transparent_render_phases.get_mut(&view_entity) else {
+        let Ok(view) = camera_views.get(default_camera_view.0) else {
+            continue;
+        };
+
+        let Some(transparent_phase) = transparent_render_phases.get_mut(&view.retained_view_entity)
+        else {
             continue;
         };
 
@@ -643,13 +636,12 @@ pub fn queue_gradient(
         transparent_phase.add(TransparentUi {
             draw_function,
             pipeline,
-            entity: (*entity, gradient.main_entity),
-            sort_key: (
-                FloatOrd(gradient.stack_index as f32 + GRADIENT_Z_OFFSET),
-                entity.index(),
-            ),
+            entity: (gradient.render_entity, gradient.main_entity),
+            sort_key: FloatOrd(gradient.stack_index as f32 + GRADIENT_Z_OFFSET),
             batch_range: 0..0,
-            extra_index: PhaseItemExtraIndex::NONE,
+            extra_index: PhaseItemExtraIndex::None,
+            index,
+            indexed: true,
         });
     }
 }
@@ -703,7 +695,11 @@ pub fn prepare_gradient(
         for ui_phase in phases.values_mut() {
             for item_index in 0..ui_phase.items.len() {
                 let item = &mut ui_phase.items[item_index];
-                if let Some(gradient) = extracted_gradients.items.get(item.entity()) {
+                if let Some(gradient) = extracted_gradients
+                    .items
+                    .get(item.index)
+                    .filter(|n| item.entity() == n.render_entity)
+                {
                     *item.batch_range_mut() = item_index as u32..item_index as u32 + 1;
                     let uinode_rect = gradient.rect;
 
