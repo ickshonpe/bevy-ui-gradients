@@ -1,5 +1,8 @@
 ## Changelog
 
+### 0.4.0
+* Bevy 0.16 support.
+
 ### 0.3.0
 * Added a `start: f32` field to `ConicGradient`'. This is used to set the starting angle for the gradient.
 * Added builder methods `with_start` and `with_position` to `ConicGradient`
