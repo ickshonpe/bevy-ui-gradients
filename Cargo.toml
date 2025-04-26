@@ -9,7 +9,6 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/ickshonpe/bevy-ui-gradients"
 
-
 [dependencies]
 bevy = { version = "0.16", features = ["bevy_asset", "bevy_sprite", "bevy_ui"] }
 bytemuck = "1.7"
